@@ -180,38 +180,44 @@ class Experiment:
         current_cost = current_verify_cost =0
 
         #np.reshape so dumb.. should pick one
-        logFile = None
-        if logfilename is not None:
-            logFile = open(logfilename, 'a+')
+        try:
+            logFile = None
+            if logfilename is not None:
+                logFile = open(logfilename, 'a+')
 
-        if self.isMissingFixed:
-            miss_rate = self.missingCount/float(len(self.jointIndex))
-        else:
-            miss_rate = self.missingRate
-        for i in range(self.trainStep):
-            print "Training Percentage : ", i / float(self.trainStep) * 100 , "%"
-            print "Current Cost : ", current_cost , " Current Verify Cost : ", current_verify_cost
+            if self.isMissingFixed:
+                miss_rate = self.missingCount/float(len(self.jointIndex))
+            else:
+                miss_rate = self.missingRate
+            for i in range(self.trainStep):
+                print "Training Percentage : ", i / float(self.trainStep) * 100 , "%"
+                print "Current Cost : ", current_cost , " Current Verify Cost : ", current_verify_cost
+
+                if logFile is not None:
+                    logFile.write(str(i) + "step\t" + str(round(current_cost, 4)) + "\t" + str(round(current_verify_cost, 4)) + "\n")
+                for batch in batches:
+                    noise_batch = []
+                    for jointPos in batch:
+                        jointPos = np.reshape(jointPos, (len(self.jointIndex), 3))
+                        noisePos, missingMarker = createMissingModel(jointPos, True)
+                        noise_batch.append(noisePos)
+                    for j in range(self.batchRepetition):
+                        #if logFile is not None:
+                        #    logFile.write(str(current_cost)+"\t")
+                        current_cost = network.train(batch, noise_batch, miss_rate)
+                        #print "Current Cost : ", current_cost
+
+                    current_verify_cost = network.verify(ver_set, ver_noise_set, miss_rate)
 
             if logFile is not None:
-                logFile.write(str(i) + "step\t" + str(round(current_cost, 4)) + "\t" + str(round(current_verify_cost, 4)) + "\n")
-            for batch in batches:
-                noise_batch = []
-                for jointPos in batch:
-                    jointPos = np.reshape(jointPos, (len(self.jointIndex), 3))
-                    noisePos, missingMarker = createMissingModel(jointPos, True)
-                    noise_batch.append(noisePos)
-                for j in range(self.batchRepetition):
-                    #if logFile is not None:
-                    #    logFile.write(str(current_cost)+"\t")
-                    current_cost = network.train(batch, noise_batch, miss_rate)
-                    #print "Current Cost : ", current_cost
+                logFile.close()
 
-                current_verify_cost = network.verify(ver_set, ver_noise_set, miss_rate)
-
-        if logFile is not None:
-            logFile.close()
-
-        network.save()
+            network.save()
+        except KeyboardInterrupt:
+            print "Keyboard Interrupt...!"
+            if logFile is not None:
+                logFile.close()
+            network.save()
 
 
 def main(network_arch,

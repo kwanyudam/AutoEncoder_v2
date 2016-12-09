@@ -9,7 +9,7 @@ def xavier_initialization(input_size, output_size):             #xavier initiali
 
 
 class NeuralNetwork:
-    #network architecture default : 50 40 30
+    #Cost Weight for each Position
     def __init__(self, network_arch, ckptname, learning_rate=0.001, decay_rate=0.99, rectifier='relu'):
 
         self.sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
