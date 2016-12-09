@@ -10,9 +10,10 @@ def xavier_initialization(input_size, output_size):             #xavier initiali
 
 class NeuralNetwork:
     #network architecture default : 50 40 30
-    def __init__(self, network_arch, learning_rate=0.001, decay_rate=0.99, rectifier='relu'):
+    def __init__(self, network_arch, ckptname, learning_rate=0.001, decay_rate=0.99, rectifier='relu'):
 
         self.sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True))
+        self.ckptname = ckptname
         
         self.input_shape = network_arch[0]
 
@@ -139,11 +140,11 @@ class NeuralNetwork:
         result = np.reshape(result, (15, 3))
         return result
 
-    def save(self, filename):
-        self.saver.save(self.sess, filename)
-    def load(self, filename):
+    def save(self):
+        self.saver.save(self.sess, self.ckptname)
+    def load(self):
         self.saver = tf.train.Saver()
-        self.saver.restore(self.sess, filename)
+        self.saver.restore(self.sess, self.ckptname)
 
     def close(self):
         self.sess.close()

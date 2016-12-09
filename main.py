@@ -16,20 +16,21 @@ import time
 from datetime import datetime
 
 myNN=None
+ckpt_dir = 'resultData/ckpt/'
+log_dir = 'resultData/log/'
 
 def get_dist(a, b):
     return math.sqrt((a[0]-b[0])*(a[0]-b[0]) + (a[1]-b[1])*(a[1]-b[1]) + (a[2]-b[2])*(a[2]-b[2]))
 
-def createNoiseMesh(mesh, jointIndex, missRate=0.3):
-    newmesh = copy.copy(mesh)
-    for jointCoor in mesh:
-        if random.random()>(1-missRate):
-            i = random.randrange(0, len(jointIndex)-1)
-            newmesh[i][0] = newmesh[i][0] + random.random() - 0.5
-            newmesh[i][1] = newmesh[i][1] + random.random() - 0.5
-            newmesh[i][2] = newmesh[i][2] + random.random() - 0.5
+def createNoiseModel(jointPos, missRate=0.3):
+    noisePos = copy.copy(jointPos)
+    for i in range(len(jointPos)):
+        if random.random()<missRate:
+            noisePos[i][0] = noisePos[i][0] + random.random() - 0.5
+            noisePos[i][1] = noisePos[i][1] + random.random() - 0.5
+            noisePos[i][2] = noisePos[i][2] + random.random() - 0.5
 
-    return newmesh
+    return noisePos
 
 def createMissingModel(jointPos, isMissingFixed=False, missingCoor=-1, missRate=0.0):
     missingPos = copy.copy(jointPos)
@@ -54,21 +55,6 @@ def createMissingModel(jointPos, isMissingFixed=False, missingCoor=-1, missRate=
 
     return missingPos, missingMarker
 
-def calculateAvgMesh(meshes):
-    avgMesh = np.ndarray(shape=(15, 3), dtype=float)
-    for mesh in meshes:
-        for i in range(0, len(mesh)):
-            avgMesh[i][0] = avgMesh[i][0] + mesh[i][0]
-            avgMesh[i][1] = avgMesh[i][1] + mesh[i][1]
-            avgMesh[i][2] = avgMesh[i][2] + mesh[i][2]
-
-    for i in range(0, len(mesh)):
-        avgMesh[i][0] = avgMesh[i][0] / len(meshes)
-        avgMesh[i][1] = avgMesh[i][1] / len(meshes)
-        avgMesh[i][2] = avgMesh[i][2] / len(meshes)
-
-    return avgMesh
-
 class Experiment:
     def __init__(self, jointIndex, batchSize, batchRepetition, trainStep, isMissingFixed, missingRate, missingCount):
         self.jointIndex = jointIndex
@@ -81,7 +67,21 @@ class Experiment:
         return
 
 
-    #def run(self, recon, meshes, statfilename):
+    def run(self, network, test_set, resultfilename):
+        resultFile = open(resultfilename)
+
+        for i in range(len(meshes)):
+            jointPos, trans, scale = recon.preprocessModel(test_set[i], False)
+
+            #create Missing Pos
+
+            #get error
+
+        #print Error
+        return
+
+
+
 
     def run_statistics(self, recon, meshes, filename):
 
@@ -142,32 +142,7 @@ class Experiment:
         statFile.close()
 
         return
-
     '''
-    def getNewMesh(self, frameCount):
-        originalMesh = self.meshes[frameCount]
-
-        isUsable, originalMesh, missingMarker, trans, pre_scale = preprocessModel(originalMesh, False)
-
-        missingMesh = createMissingMesh(originalMesh, self.jointIndex)
-        #print "before preprocess", missingMesh
-
-        isUsable, missingMesh, missingMarker, trans, scale = preprocessModel(missingMesh, False)
-
-        #print "after preprocess", missingMesh
-        if missingMesh is not None:
-            reconMesh = self.recon.reconstructModel(missingMesh, missingMarker)
-            print pre_scale
-            for i in range(0, len(originalMesh)):
-                error_dist = get_dist(originalMesh[i], reconMesh[i]) * pre_scale
-                print error_dist, " ",
-            print ""
-            return originalMesh, missingMesh, reconMesh
-        else:
-            return originalMesh, originalMesh
-
-    '''
-
     def run(self, recon, meshes):
 
         self.meshes = meshesgd
@@ -178,6 +153,7 @@ class Experiment:
 
         while(self.sim()):
             pass
+    '''
 
     def train(self, network, training_set, verifying_set, logfilename=None):
         
@@ -217,7 +193,7 @@ class Experiment:
             print "Current Cost : ", current_cost , " Current Verify Cost : ", current_verify_cost
 
             if logFile is not None:
-                logFile.write(str(i) + "step\t" + str(current_cost) + "\t" + str(current_verify_cost) + "\n")
+                logFile.write(str(i) + "step\t" + str(round(current_cost, 4)) + "\t" + str(round(current_verify_cost, 4)) + "\n")
             for batch in batches:
                 noise_batch = []
                 for jointPos in batch:
@@ -225,9 +201,10 @@ class Experiment:
                     noisePos, missingMarker = createMissingModel(jointPos, True)
                     noise_batch.append(noisePos)
                 for j in range(self.batchRepetition):
-                    if logFile is not None:
-                        logFile.write(str(current_cost)+"\t")
+                    #if logFile is not None:
+                    #    logFile.write(str(current_cost)+"\t")
                     current_cost = network.train(batch, noise_batch, miss_rate)
+                    #print "Current Cost : ", current_cost
 
                 current_verify_cost = network.verify(ver_set, ver_noise_set, miss_rate)
 
@@ -235,64 +212,6 @@ class Experiment:
             logFile.close()
 
         network.save()
-
-    '''
-    def train_verify(self, network, meshes, verify_meshes, filename, batchSize=1000, trainstep=1000, missRate=0.3, avgMesh=None):
-
-        preMeshes=[]
-        for mesh in meshes:
-            isUsable, preprocessedMesh, missingMarker, trans, scale = preprocessModel(mesh, False)
-            preMeshes.append(preprocessedMesh)
-        
-        verifyMeshes=[]
-        for mesh in verify_meshes:
-            isUsable, preprocessedMesh, missingMarker, trans, scale = preprocessModel(mesh, False)
-            verifyMeshes.append(preprocessedMesh)
-        
-        verifyNoiseMeshes = []
-        for eachData in verify_meshes:
-            eachData = np.reshape(eachData, (len(self.jointIndex), 3))
-            verifyNoiseMeshes.append(createMissingMesh(eachData, self.jointIndex))
-        
-
-        jointBatches = [preMeshes[i:i + batchSize] for i in range(0, len(preMeshes), batchSize)]
-
-        print "ckpt Filename : ", filename
-        print "current Time : ", time.localtime()
-        print "Training start!"
-
-        current_cost=0.0
-        current_verify_cost=0.0
-
-        logFile = open(filename.replace('ckpt', 'log'), 'w')
-        #verifylogFile = open("verify_"+filename.replace('ckpt', 'log'), 'w')
-
-        for i in range(trainstep):
-            print "Training Percentage : ", i / float(trainstep) * 100 , "%"
-            print "Current Cost : ", current_cost , " Current Verify Cost : ", current_verify_cost
-            
-            logFile.write(str(i) + "step\t" + str(current_cost) + "\t" + str(current_verify_cost) + "\n")
-            #verifylogFile.write(str(current_verify_cost)+"\n")
-            for batch in jointBatches:
-                noiseBatch = []
-                for eachData in batch:
-                    eachData = np.reshape(eachData, (len(self.jointIndex), 3))
-                    noiseBatch.append(createMissingMesh(eachData, self.jointIndex))
-                for j in range(10):
-                    logFile.write(str(current_cost)+"\t")
-                    current_cost = network.train(batch, noiseBatch, 1)
-                    #print "in batch loop : Current Cost : ", current_cost , " Current Verify Cost : ", current_verify_cost
-            
-                current_verify_cost = network.verify(verifyMeshes, verifyNoiseMeshes, 1)
-                #print "out batch loop : Current Cost : ", current_cost , " Current Verify Cost : ", current_verify_cost
-            current_verify_cost = network.verify(verifyMeshes, verifyNoiseMeshes, 1)
-
-        network.save(filename)
-        logFile.close()
-        #verifylogFile.close()  
-
-        return
-    '''
 
 
 def main(network_arch,
@@ -339,6 +258,7 @@ def main(network_arch,
         #-decay rate
         #-rectifier
         myNN = NeuralNetwork(network_arch=network_arch,
+         ckptname = ckpt_dir+ckptname,
          learning_rate=learning_rate,
          decay_rate=decay_rate,
          rectifier=rectifier)
@@ -352,7 +272,8 @@ def main(network_arch,
          isMissingFixed=isMissingFixed, missingRate=missingRate, missingCount=missingCount)
 
         #Train NN
-        experiment.train(myNN, training_set, verifying_set)
+        logfilename = ckptname.replace('.ckpt', '.log')
+        experiment.train(myNN, training_set, verifying_set, log_dir+logfilename)
 
         return
 
@@ -414,6 +335,8 @@ def main(network_arch,
 if __name__=="__main__":
     argv = sys.argv
 
+    #Noise - Missing Control
+
     main([15 * 3, 1024, 512, 256],
      db_dir="DB",
      train_filename="jointDB1.bin",
@@ -424,5 +347,5 @@ if __name__=="__main__":
      missingCount=1,
      isSimulation=False,
      batchSize=100,
-     batchRepetition=10,
-     trainStep=1000)
+     batchRepetition=1,
+     trainStep=10)

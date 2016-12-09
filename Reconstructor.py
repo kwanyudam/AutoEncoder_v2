@@ -34,7 +34,7 @@ def preprocessModel(jointPos, isRefine=True, isNormalize=True):
     else:
         refinedPos = jointPos
 
-    # 3. Normailze (Transition & Scaling)
+    # 2. Normailze (Transition & Scaling)
     if isNormalize:
         transition = copy.copy(refinedPos[0])
         scale = getLength(refinedPos[0], refinedPos[1])
