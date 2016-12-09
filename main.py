@@ -278,8 +278,7 @@ def main(network_arch,
          isMissingFixed=isMissingFixed, missingRate=missingRate, missingCount=missingCount)
 
         #Train NN
-        logfilename = ckptname.replace('.ckpt', '.log')
-        experiment.train(myNN, training_set, verifying_set, log_dir+logfilename)
+        experiment.train(myNN, training_set, verifying_set, log_dir+logname)
 
         return
 
