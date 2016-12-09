@@ -86,12 +86,10 @@ def load_verify(filepath):
 
         #Mirror - change Joint Index between left & right
 
-	if random.randrange(0,2) == 0:
-
+        if random.randrange(0,2) == 0:
             trainingJointData.append(tpArray)
             trainingJointData.append(mirrorArray)
             trainingJointCount+=1
-
         else:
             verifyingJointData.append(tpArray)
             verifyingJointData.append(mirrorArray)
@@ -112,6 +110,7 @@ def load(filepath):
     jointCount = int(jointCount)
     jointNames = f.readline()
     lines = f.readlines()
+
     for line in lines:
         trim = line.find('>')
         line = line[trim+1:-2]
@@ -135,7 +134,7 @@ def load(filepath):
 #    standardization(jointData)
 
     print "BVH Loading Complete!"
-    return jointCount*2, [], jointData
+    return jointData, jointNames, [-1, 0, 1, 2, 3, 1, 5, 6, 1, 0, 9, 10, 0, 12, 13]
 
 def load_stanford(filepath, jointCount=19):
     print "Start Loading BVH ... (load_stanford)"

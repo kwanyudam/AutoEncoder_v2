@@ -18,6 +18,7 @@ from datetime import datetime
 myNN=None
 ckpt_dir = 'resultData/ckpt/'
 log_dir = 'resultData/log/'
+result_dir = 'resultData/result/'
 
 def get_dist(a, b):
     return math.sqrt((a[0]-b[0])*(a[0]-b[0]) + (a[1]-b[1])*(a[1]-b[1]) + (a[2]-b[2])*(a[2]-b[2]))
@@ -68,20 +69,59 @@ class Experiment:
 
 
     def run(self, network, test_set, resultfilename):
-        resultFile = open(resultfilename)
+        resultFile = open(resultfilename, 'w')
 
-        for i in range(len(meshes)):
+        total_error = []
+
+
+        for i in range(len(test_set)):
             jointPos, trans, scale = recon.preprocessModel(test_set[i], False)
 
+            curr_error = np.zeros((len(self.jointIndex),), dtype=float)
+
             #create Missing Pos
+            for missing_i in range(1, len(self.jointIndex)):
+                missingPos, missingMarker = createMissingModel(jointPos, True, missing_i)
+
+                reconPos = recon.reconstructModel(network, missingPos, missingMarker)
+
+                error_dist = get_dist(jointPos[missing_i], reconPos[missing_i]) *scale
+                curr_error[missing_i] += error_dist
+
+            total_error.append(curr_error)
+
+            if(i % (len(test_set)/100) == 0):
+                print i / (len(test_set)/100), "% Complete..."
 
             #get error
 
-        #print Error
+        #print error statistics
+        for i in range(0, len(self.jointIndex)):
+            error_mean =0.0
+            error_std = 0.0
+            error_count = 0
+            for j in range(0, len(total_error)):
+                error_mean += total_error[j][i] / len(total_error)
+
+            print i, "th index Error AVG : ", error_mean
+            resultFile.write(str(error_mean)+"\t")
+
+            for j in range(0, len(total_error)):
+                error_std += math.sqrt((total_error[j][i] - error_mean) * (total_error[j][i] - error_mean)) / len(total_error)
+                if total_error[j][i] > 10.0:
+                    error_count += 1
+
+            print i, "th index Error STD : ", error_std
+            resultFile.write(str(error_std)+"\t")
+
+            print i, "th index Error Count : ", error_count / float(len(total_error)) * 100 , " %"
+            resultFile.write(str(error_count / float(len(total_error)) * 100) + "\n")
+
+            print ""
+
+        resultFile.close()
+
         return
-
-
-
 
     def run_statistics(self, recon, meshes, filename):
 
@@ -176,7 +216,6 @@ class Experiment:
 
         batches = [pre_set[i:i+self.batchSize] for i in range(0, len(pre_set), self.batchSize)]
 
-
         current_cost = current_verify_cost =0
 
         #np.reshape so dumb.. should pick one
@@ -202,10 +241,7 @@ class Experiment:
                         noisePos, missingMarker = createMissingModel(jointPos, True)
                         noise_batch.append(noisePos)
                     for j in range(self.batchRepetition):
-                        #if logFile is not None:
-                        #    logFile.write(str(current_cost)+"\t")
                         current_cost = network.train(batch, noise_batch, miss_rate)
-                        #print "Current Cost : ", current_cost
 
                     current_verify_cost = network.verify(ver_set, ver_noise_set, miss_rate)
 
@@ -243,7 +279,7 @@ def main(network_arch,
         print "Training Network..."
         train_dir = db_dir+"/"+train_filename
         if train_dir == None:
-            print_error("NoSuchFileError")
+            print "NoSuchFileError"
             return
         if ckptname is None:
             curr_date = datetime.now().strftime("%y%m%d%H%M")
@@ -270,7 +306,7 @@ def main(network_arch,
          rectifier=rectifier)
 
         #Load BVH
-        training_set, verifying_set, jointNames, jointIndex = BVH.load_verify(train_dir)
+        training_set, verifying_set, jointNames, jointIndex, mean_list, std_list = BVH.load_verify(train_dir)
         training_cnt = len(training_set)
         verifying_cnt = len(verifying_set)
 
@@ -285,6 +321,30 @@ def main(network_arch,
     else:
         print "Test Network..."
         #Load NN
+        test_dir = db_dir+"/"+test_filename
+        if test_dir==None:
+            print "NoSuchFileError"
+            return
+        #sys. file exists
+        if (ckptname is None) or not os.path.exists(ckpt_dir+ckptname):
+            print "CKPT Name Required"
+            return
+
+        myNN = NeuralNetwork(network_arch=network_arch,
+         ckptname = ckpt_dir+ckptname,
+         learning_rate=learning_rate,
+         decay_rate=decay_rate,
+         rectifier=rectifier)
+        myNN.load()
+
+        test_set, jointNames, jointIndex, mean_list, std_list = BVH.load(test_dir)
+
+        resultname = ckptname.replace('.ckpt', '.result')
+
+        experiment = Experiment(jointIndex=jointIndex, batchSize=batchSize, batchRepetition=batchRepetition, trainStep=trainStep,
+         isMissingFixed=isMissingFixed, missingRate=missingRate, missingCount=missingCount)
+
+        experiment.run(myNN, test_set, result_dir+resultname)
 
         #Load BVH from test set
 
@@ -346,7 +406,8 @@ if __name__=="__main__":
      db_dir="DB",
      train_filename="jointDB1.bin",
      test_filename="jointDB2.bin",
-     isTrain=True,
+     ckptname="1612092129.ckpt",
+     isTrain=False,
      isMissingFixed=True,
      missingRate=0.3,
      missingCount=1,
