@@ -20,8 +20,11 @@ ckpt_dir = 'resultData/ckpt/'
 log_dir = 'resultData/log/'
 result_dir = 'resultData/result/'
 
-def get_dist(a, b):
-    return math.sqrt((a[0]-b[0])*(a[0]-b[0]) + (a[1]-b[1])*(a[1]-b[1]) + (a[2]-b[2])*(a[2]-b[2]))
+def get_dist(a, b, c, d):
+    x = a[0]*d[0] - b[0]*d[0]
+    y= a[1]*d[1] - b[1]*d[1]
+    z = a[2]*d[2]- b[2]*d[2]
+    return math.sqrt(x*x + y*y + z*z)
 
 def createNoiseModel(jointPos, missRate=0.3):
     noisePos = copy.copy(jointPos)
@@ -73,19 +76,19 @@ class Experiment:
 
         total_error = []
 
+        test_set, test_mean, test_std = recon.preprocessModel(test_set, isRefine=False, isNormalize=True)
 
         for i in range(len(test_set)):
-            jointPos, trans, scale = recon.preprocessModel(test_set[i], False)
 
             curr_error = np.zeros((len(self.jointIndex),), dtype=float)
 
             #create Missing Pos
             for missing_i in range(1, len(self.jointIndex)):
-                missingPos, missingMarker = createMissingModel(jointPos, True, missing_i)
+                missingPos, missingMarker = createMissingModel(test_set[i], True, missing_i)
 
                 reconPos = recon.reconstructModel(network, missingPos, missingMarker)
 
-                error_dist = get_dist(jointPos[missing_i], reconPos[missing_i]) *scale
+                error_dist = get_dist(test_set[i][missing_i], reconPos[missing_i], test_mean[missing_i], test_std[missing_i])
                 curr_error[missing_i] += error_dist
 
             total_error.append(curr_error)
@@ -96,7 +99,7 @@ class Experiment:
             #get error
 
         #print error statistics
-        for i in range(0, len(self.jointIndex)):
+        for i in range(1, len(self.jointIndex)):
             error_mean =0.0
             error_std = 0.0
             error_count = 0
@@ -123,8 +126,55 @@ class Experiment:
 
         return
 
+
+    def getNewMesh(self, frameCount):
+        real_pos = self.test_set[frameCount]
+        test_pos = self.test_preprocess_set[frameCount]
+        noise_pos, missing = createMissingModel(test_pos, isMissingFixed=True)
+        recon_pos = self.network.reconstruct(noise_pos)
+        
+        for i in range(1,len(test_pos)):
+
+            test_pos[i][0] = test_pos[i][0] * self.test_std[i][0] + self.test_mean[i][0]
+            test_pos[i][1] = test_pos[i][1] * self.test_std[i][1] + self.test_mean[i][1]
+            test_pos[i][2] = test_pos[i][2] * self.test_std[i][2] + self.test_mean[i][2]
+
+            noise_pos[i][0] = noise_pos[i][0] * self.test_std[i][0] + self.test_mean[i][0]
+            noise_pos[i][1] = noise_pos[i][1] * self.test_std[i][1] + self.test_mean[i][1]
+            noise_pos[i][2] = noise_pos[i][2] * self.test_std[i][2] + self.test_mean[i][2]
+
+            recon_pos[i][0] = recon_pos[i][0] * self.test_std[i][0] + self.test_mean[i][0]
+            recon_pos[i][1] = recon_pos[i][1] * self.test_std[i][1] + self.test_mean[i][1]
+            recon_pos[i][2] = recon_pos[i][2] * self.test_std[i][2] + self.test_mean[i][2]
+
+        real_center = copy.copy(real_pos[0])
+        test_center = copy.copy(test_pos[0])
+        noise_center = copy.copy(noise_pos[0])
+        recon_center = copy.copy(recon_pos[0])
+
+        for i in range(len(test_pos)):
+            real_pos[i] -= real_center
+            if i>0:
+                test_pos[i]-= real_center
+                noise_pos[i]-= real_center
+                recon_pos[i]-= real_center
+
+            real_pos[i]/=100.0
+            test_pos[i]/=100.0
+            noise_pos[i]/=100.0
+            recon_pos[i]/=100.0
+
+        return real_pos, noise_pos, recon_pos
+        
+
     def run_sim(self, network, test_set):
         #self.sim = simulator.Environment(jointIndex, self.getNewMesh)
+        test_preprocess_set, test_mean, test_std = recon.preprocessModel(test_set, isRefine=False, isNormalize=True)
+        self.test_set = test_set
+        self.test_preprocess_set = test_preprocess_set
+        self.network=network
+        self.test_mean = test_mean
+        self.test_std = test_std
         self.sim = simulator.Environment(self.jointIndex, self.getNewMesh)
 
         while(self.sim()):
@@ -137,12 +187,9 @@ class Experiment:
         
         ver_set, ver_mean, ver_std = recon.preprocessModel(verifying_set, isRefine=False, isNormalize=True)
 
-        print pre_set
-        #print np.mean(pre_set, axis=0)
         
         ver_noise_set = []
-        for jointPos in verifying_set:
-            jointPos = np.reshape(jointPos, (len(self.jointIndex), 3))
+        for jointPos in ver_set:
             noisePos, missingMarker = createMissingModel(jointPos, True)
             ver_noise_set.append(np.reshape(noisePos, (len(self.jointIndex), 3)))
 
@@ -175,9 +222,9 @@ class Experiment:
                         noisePos, missingMarker = createMissingModel(jointPos, True)
                         noise_batch.append(noisePos)
                     for j in range(self.batchRepetition):
-                        current_cost = network.train(batch, noise_batch, self.batchSize, miss_rate)
+                        current_cost = network.train(batch, noise_batch, miss_rate)
 
-                    current_verify_cost = network.verify(ver_set, ver_noise_set, miss_rate)
+                current_verify_cost, rs = network.verify(ver_set[0:1], ver_noise_set[0:1], miss_rate)
 
             if logFile is not None:
                 logFile.close()
@@ -220,7 +267,8 @@ def main(network_arch,
             ckptname = curr_date+".ckpt"
             logname= curr_date+".log"
         else:
-            logname = ckptname.replace(".ckpt", ".log")
+            print "ckpt already exists!"
+            return
         if os.path.isfile(ckptname):
             print ckptname, " File Already Exists!"
             return
@@ -271,7 +319,7 @@ def main(network_arch,
          rectifier=rectifier)
         myNN.load()
 
-        test_set, jointNames, jointIndex, mean_list, std_list = BVH.load(test_dir)
+        test_set, jointNames, jointIndex= BVH.load(test_dir)
 
         resultname = ckptname.replace('.ckpt', '.result')
 
@@ -292,13 +340,15 @@ if __name__=="__main__":
     main([15 * 3, 1024, 512, 256],
      db_dir="DB",
      train_filename="jointDB1.bin",
-     test_filename="jointDB2.bin",
-     #ckptname="1612100249.ckpt",
-     isTrain=True,
+     #test_filename="jointDB2.bin",
+     test_filename="jointDB_Stand_Pose_87960.bin",
+     ckptname="1612100501.ckpt",
+     isTrain=False,
      isMissingFixed=True,
+     #rectifier='softplus',
      missingRate=0.3,
      missingCount=1,
      isSimulation=False,
      batchSize=100,
-     batchRepetition=1,
-     trainStep=10)
+     batchRepetition=5,
+     trainStep=300)

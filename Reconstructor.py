@@ -59,15 +59,15 @@ def preprocessModel(posBatch, isRefine=True, isNormalize=True):
     return np.array(refinedPosBatch), mean_list, std_list
 
 def reconstructModel(network, jointPos, missingMarker=None):
-    resultPos = network.reconstruct(jointPos, 1)
+    resultPos = network.reconstruct(jointPos, 1/15.0)
     
-    if missingMarker is not None:
+    '''if missingMarker is not None:
         for i in range(0, len(resultPos)):
             if missingMarker[i] == True:
                 resultPos[i] = resultPos[i]
             else:
                 resultPos[i] = jointPos[i]  
-    
+    '''
 
     return resultPos
 

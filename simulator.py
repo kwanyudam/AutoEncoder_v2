@@ -13,6 +13,8 @@ from OpenGL.GLU import *
 import numpy as np
 if not module_exists("glfw"):
     print "Warning : glfw doesn't exists..."
+else:
+    import glfw
 import random
 
 class Environment:
@@ -93,12 +95,11 @@ class Environment:
 
         glMatrixMode(GL_PROJECTION)
         glLoadIdentity()
-        glOrtho(-10, 10, -10, 10, -10, 10)
-        #gluPerspective(10.0, self.ratio, 0.1, 100.0)
-        #gluLookAt(self.cameraPos[0],self.cameraPos[1],self.cameraPos[2],
-        #self.cameraPos[3],self.cameraPos[4],self.cameraPos[5],
-        #self.cameraPos[6],self.cameraPos[7],self.cameraPos[8])
-        #gluLookat()
+        #glOrtho(-10, 10, -10, 10, -10, 10)
+        gluPerspective(10.0, self.ratio, 0.1, 100.0)
+        gluLookAt(self.cameraPos[0],self.cameraPos[1],self.cameraPos[2],
+        self.cameraPos[3],self.cameraPos[4],self.cameraPos[5],
+        self.cameraPos[6],self.cameraPos[7],self.cameraPos[8])
 
     def render_callback(self, meshes):
         glClearColor(1, 1, 1, 0);
@@ -113,11 +114,12 @@ class Environment:
         #return
 
         def drawBVHModel(mesh, offset_x):
+            offset_x=0
             glLineWidth(2.0)
             glPushMatrix()
             glTranslatef(offset_x, 0, 0)
             #glRotatef(60, 1, 0, 0)
-            #glRotatef(45, 0, 1, 0)
+            glRotatef(45, 0, 1, 0)
             
             for i in range(0, len(self.jointIndex)):
                 if self.jointIndex[i] == -1:
@@ -146,18 +148,3 @@ class Environment:
             Xoffset = Xoffset + self.meshDistance
             drawBVHModel(mesh, Xoffset)
             i=i+1
-
-'''
-def renderBone(x0, y0, z0, x1, y1, z1):
-    dir_x = x1-x0
-    dir_y = y1-y0
-    dir_z = z1-z0
-    bone_length = math.sqrtf(dir_x*dir_x+dir_y*dir_y+dir_z*dir_z)
-
-    quad_obj = gluNewQuadric()
-    gluQuadricDrawStyle( quad_obj, GLU_FILL )
-    gluQuadricNormals( quad_obj, GLU_SMOOTH )
-
-    glPushMatrix()
-    glTranslatef( x0, y0, z0 )
-'''

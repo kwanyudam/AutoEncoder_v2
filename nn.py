@@ -75,8 +75,7 @@ class NeuralNetwork:
 
         self.train_count=1
 
-    def train(self, originalBatch, noiseBatch, batch_size, miss_rate=0.0):
-        #should get size of pos (15) from input... maybe just get missRate
+    def train(self, originalBatch, noiseBatch, miss_rate=0.0):
         weight = [1.0 / (1.0-miss_rate)]*len(originalBatch)
         weight = np.array(weight, dtype=float)
         weight = np.reshape(weight, (len(originalBatch), 1))
@@ -88,7 +87,7 @@ class NeuralNetwork:
             noise_batch.append(np.reshape(noiseBatch[i], (self.input_shape)))
 
         opt,z, cost, gl_step = self.sess.run((self.optimizer,self.z, self.cost, self.global_step),
-            feed_dict={self.x:batch, self.y:noise_batch, self.weight:weight})
+            feed_dict={self.x:noise_batch, self.y:batch, self.weight:weight})
 
         #print "Curent step : ", gl_step
 
@@ -96,9 +95,8 @@ class NeuralNetwork:
 
         return cost
 
-    def verify(self, originalBatch, noiseBatch, missCount=0):
-        #should get size of pos (15) from input... maybe just get missRate
-        weight = [15.0/(15.0-missCount)]*len(originalBatch)
+    def verify(self, originalBatch, noiseBatch, miss_rate=0):
+        weight = [1.0/(1.0-miss_rate)]*len(originalBatch)
         weight = np.array(weight, dtype=float)
         weight = np.reshape(weight, (len(originalBatch), 1))
         
@@ -108,13 +106,14 @@ class NeuralNetwork:
             batch.append(np.reshape(originalBatch[i], (self.input_shape)))
             noise_batch.append(np.reshape(noiseBatch[i], (self.input_shape)))
         
-        cost, gl_step = self.sess.run((self.cost, self.global_step),
-            feed_dict={self.x:batch, self.y:noise_batch, self.weight:weight})
+        
+        result, cost = self.sess.run((self.result, self.cost),
+            feed_dict={self.x:noise_batch, self.y:batch, self.weight:weight})
 
-        return cost
+        return cost, result
 
-    def reconstruct(self, X, missCount=0):
-        weight = [15.0/(15.0-missCount)]
+    def reconstruct(self, X, miss_rate=0.0):
+        weight = [1.0/(1.0-miss_rate)]
         weight = np.array(weight, dtype=float)
         weight = np.reshape(weight, (1, 1))
 
