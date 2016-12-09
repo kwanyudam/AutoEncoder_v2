@@ -56,8 +56,8 @@ class NeuralNetwork:
 
         self.cost = tf.reduce_mean(self.result_loss)
 	
-	# add tensorboard
-#	cost_summary = tf.scalar_summary("Cost", self.cost)
+    	# add tensorboard
+        #	cost_summary = tf.scalar_summary("Cost", self.cost)
 
         self.global_step = tf.Variable(0, trainable=False)
         self.lr = tf.train.exponential_decay(learning_rate, self.global_step, 1000, decay_rate, staircase=True)
@@ -75,46 +75,26 @@ class NeuralNetwork:
 
         self.train_count=1
 
-    def train_verify(self, originalBatch, noiseBatch, miss_rate):
-        weight = [15.0/(15.0-missCount)]*len(originalBatch[0])
-        weight = np.array(weight, dtype=float)
-        weight = np.reshape(weight, (len(originalBatch), 1))
-        
-        for i in range(len(originalBatch)):
-            originalBatch[i] = np.reshape(originalBatch[i], (self.input_shape))
-            noiseBatch[i] = np.reshape(noiseBatch[i], (self.input_shape))
-
-        opt,z, cost, gl_step, summary = self.sess.run((self.optimizer,self.z, self.cost, self.global_step), feed_dict={self.x:noiseBatch, self.y:originalBatch, self.weight:weight})
-
-        #print "Curent step : ", gl_step
-
-        self.train_count = self.train_count + 1
-
-        return cost
-
-    def train(self, originalBatch, noiseBatch, miss_rate=0.0):
+    def train(self, originalBatch, noiseBatch, batch_size, miss_rate=0.0):
         #should get size of pos (15) from input... maybe just get missRate
         weight = [1.0 / (1.0-miss_rate)]*len(originalBatch)
         weight = np.array(weight, dtype=float)
         weight = np.reshape(weight, (len(originalBatch), 1))
         
+        batch = []
+        noise_batch = []
         for i in range(len(originalBatch)):
-            originalBatch[i] = np.reshape(originalBatch[i], (self.input_shape))
-            noiseBatch[i] = np.reshape(noiseBatch[i], (self.input_shape))
+            batch.append(np.reshape(originalBatch[i], (self.input_shape)))
+            noise_batch.append(np.reshape(noiseBatch[i], (self.input_shape)))
 
-        opt,z, cost, gl_step = self.sess.run((self.optimizer,self.z, self.cost, self.global_step), feed_dict={self.x:noiseBatch, self.y:originalBatch, self.weight:weight})
+        opt,z, cost, gl_step = self.sess.run((self.optimizer,self.z, self.cost, self.global_step),
+            feed_dict={self.x:batch, self.y:noise_batch, self.weight:weight})
 
         #print "Curent step : ", gl_step
 
         self.train_count = self.train_count + 1
 
         return cost
-
-    #def write_summary(summary, idx):
-#	self.writer.add_summary(summary, idx)
-
- #   def close_writer():
-#	self.writer.close()
 
     def verify(self, originalBatch, noiseBatch, missCount=0):
         #should get size of pos (15) from input... maybe just get missRate
@@ -122,11 +102,14 @@ class NeuralNetwork:
         weight = np.array(weight, dtype=float)
         weight = np.reshape(weight, (len(originalBatch), 1))
         
+        batch = []
+        noise_batch = []
         for i in range(len(originalBatch)):
-            originalBatch[i] = np.reshape(originalBatch[i], (self.input_shape))
-            noiseBatch[i] = np.reshape(noiseBatch[i], (self.input_shape))
+            batch.append(np.reshape(originalBatch[i], (self.input_shape)))
+            noise_batch.append(np.reshape(noiseBatch[i], (self.input_shape)))
         
-        cost, gl_step = self.sess.run((self.cost, self.global_step), feed_dict={self.x:noiseBatch, self.y:originalBatch, self.weight:weight})
+        cost, gl_step = self.sess.run((self.cost, self.global_step),
+            feed_dict={self.x:batch, self.y:noise_batch, self.weight:weight})
 
         return cost
 

@@ -82,9 +82,6 @@ def load_verify(filepath):
         tpArray = np.reshape(tpArray, (jointCount, 3))
 
         mirrorArray = mirrorBVH(tpArray)
-        
-
-        #Mirror - change Joint Index between left & right
 
         if random.randrange(0,2) == 0:
             trainingJointData.append(tpArray)
@@ -94,9 +91,12 @@ def load_verify(filepath):
             verifyingJointData.append(tpArray)
             verifyingJointData.append(mirrorArray)
             verifyingJointCount+=1
-#    standardization(jointData)
 
     print "BVH seperate Loading complete!"
+    #joint Data in (N, 3) shape
+
+    trainingJointData = np.array(trainingJointData)
+    verifyingJointData = np.array(verifyingJointData)
     return trainingJointData, verifyingJointData, jointNames, [-1, 0, 1, 2, 3, 1, 5, 6, 1, 0, 9, 10, 0, 12, 13]
 
 

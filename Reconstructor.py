@@ -4,12 +4,13 @@ import copy
 import sys
 import os
 import math
+import numpy as np
 from nn import NeuralNetwork
 
 def getLength(a, b):
     return math.sqrt((a[0]-b[0])*(a[0]-b[0]) + (a[1]-b[1])*(a[1]-b[1]) + (a[2]-b[2])*(a[2]-b[2]))
 
-def preprocessModel(jointPos, isRefine=True, isNormalize=True):
+def preprocessModel(posBatch, isRefine=True, isNormalize=True):
     ###preprocess JointPosition into 15*3 form & Normalize
     ###Input : jointPos (19 * 3)
     ###jointIndex should not point index number higher than itself
@@ -22,37 +23,40 @@ def preprocessModel(jointPos, isRefine=True, isNormalize=True):
 
 
     if isRefine:
-        refinedPos = [None]*15
-        for i in range(0, len(jointPos)):
-            if stanfordIndex[i] == -1:
-                continue
+        refinedPosBatch = []
+        for i in range(0, len(posBatch)):
+            currPos = np.array((15, 3))
+            for j in range(0, len(stanfordIndex)):
+                if stanfordIndex[j] == -1:
+                    continue
 
-            refinedPos[stanfordIndex[i]]=[0]*3
-            refinedPos[stanfordIndex[i]][0] = float(jointPos[i][0])
-            refinedPos[stanfordIndex[i]][1] = float(jointPos[i][1])
-            refinedPos[stanfordIndex[i]][2] = float(jointPos[i][2])
+                currPos[stanfordIndex[j]][0] = float(posBatch[i][j][0])
+                currPos[stanfordIndex[j]][1] = float(jointPos[i][j][1])
+                currPos[stanfordIndex[j]][2] = float(jointPos[i][j][2])
+            refinedPosBatch.append(currPos)
     else:
-        refinedPos = jointPos
+        refinedPosBatch = []
 
     # 2. Normailze (Transition & Scaling)
     if isNormalize:
-        transition = copy.copy(refinedPos[0])
-        scale = getLength(refinedPos[0], refinedPos[1])
+        mean_list = np.mean(posBatch, axis=0)
+        std_list = np.std(posBatch, axis=0)
 
-        if scale==0:
-            return False, None, None, None, None
+        for i in range(len(posBatch)):
+            currPos = np.zeros((15, 3))
+            for j in range(1, len(jointIndex)):
+                currPos[j][0] = (posBatch[i][j][0] - mean_list[j][0]) / std_list[j][0]
+                currPos[j][1] = (posBatch[i][j][1] - mean_list[j][1]) / std_list[j][1]
+                currPos[j][2] = (posBatch[i][j][2] - mean_list[j][2]) / std_list[j][2]
 
-        for jointCoor in refinedPos:
-            jointCoor[0] = (jointCoor[0] - transition[0]) / scale
-            jointCoor[1] = (jointCoor[1] - transition[1]) / scale
-            jointCoor[2] = (jointCoor[2] - transition[2]) / scale
+            refinedPosBatch.append(currPos)
     else:
-        transition = [0, 0, 0]
-        scale = 1
+        mean_list = np.zeros((15, 3))
+        std_list = np.zeros((15, 3))
 
     #print "inside preprocess", refinedPos
 
-    return refinedPos, transition, scale
+    return np.array(refinedPosBatch), mean_list, std_list
 
 def reconstructModel(network, jointPos, missingMarker=None):
     resultPos = network.reconstruct(jointPos, 1)
